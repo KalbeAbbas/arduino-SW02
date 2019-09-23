@@ -137,11 +137,19 @@ class xSW02: public xCoreClass
 		float 	getPressure(void);               	// pressure in pascals
 		
 		/*
+		* Used to get Gas resistance in ohms.
+		* Call this in loop(). Used to sensor gas resistance value.
+		*
+		* @return altitude. Returns float value in ohms.
+		*/
+	        float 	getGasRes(void);               	// pressure in pascals
+		
+		/*
 		* Used to get Altitude based on standard sea-level pressure
 		* Call this in loop(). Used to get sensor altitude value.
 		*
 		* @return altitude. Returns float value in meters.
-		*/		
+		*/	
 		float 	getQNE(void);
 		
 		/*
