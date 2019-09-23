@@ -93,7 +93,7 @@ bool xSW02::begin(void)
 		setTemperatureOversampling();
   		setPressureOversampling();
   		setIIRFilterSize();
-		initGasSensor(setGasHeater(200));
+		initGasSensor(setGasHeater(320));
 		xCore.write8(BME680_I2C_ADDRESS, BME680_REG_CNTL_MEAS, config.mode);
 		return true;
 	}
