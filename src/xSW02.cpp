@@ -209,6 +209,14 @@ float xSW02::getDewPoint(void)
 }
 
 /********************************************************
+ 	Read Gas Resistance from BME680 Sensor in Ohms
+*********************************************************/
+float xSW02::getGasRes(void)
+{	
+	return gas_res;
+}
+
+/********************************************************
  	Get the Current IAQ Score
 *********************************************************/
 uint16_t xSW02::getIAQ(void)
