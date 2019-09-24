@@ -175,6 +175,10 @@ class xSW02: public xCoreClass
 		* @return true. If reset completed succesfully
 		*/	
 		void	reset(void);
+		
+		float getTVOC(void);
+		
+		float getTVOCFiltered(void);
 
 		/*
 		* Get the current IAQ index.
@@ -219,7 +223,14 @@ class xSW02: public xCoreClass
 		* Reads RAW Gas Resistance value.
 		*
 		* @return gas_resistance
-		*/			
+		*/
+
+		bool readVOC(void);
+		
+		uint32_t bme680Abc(uint32_t r, float a);
+		
+		float absHum(float temp, float hum);
+		
 		uint16_t readGasResistance(void);
 
 		/*
@@ -281,6 +292,10 @@ class xSW02: public xCoreClass
 		float 	dewpoint;
 		float 	gas;
 		float 	gas_res;
+		float   voc;
+		float   vocEst;
+		bool	isValidIAQ;
+		
 		int32_t t_fine;
 		
 		//Device I2C Address
