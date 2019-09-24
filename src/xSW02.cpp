@@ -60,7 +60,26 @@
 
 #include "xSW02.h"
 #include <math.h>
+#include <SimpleKalmanFilter.h>
 
+SimpleKalmanFilter simpleKalmanFilter(2, 2, 0.01);
+float aF = 0;
+bool bme680VocValid = false;
+uint8_t bDelay = 0;
+uint32_t bme680_baseC = 0;
+float bme680_baseH = 0;
+float resFiltered;
+float tVoc = 0;
+
+struct 
+{ 
+        float         t_offset            = -.5;                 // offset temperature sensor
+        float         h_offset            = 1.5;                 // offset humitidy sensor  
+        uint32_t      vocBaseR            = 0;                   // base value for VOC resistance clean air, abc 
+        uint32_t      vocBaseC            = 0;                   // base value for VOC resistance clean air, abc  
+        float         vocHum              = 0;                   // reserved, abc
+        uint32_t      signature           = 0x49415143;          // 'IAQC'
+}param;     
 
 /*--Public Class Function--*/
 /********************************************************
@@ -93,11 +112,114 @@ bool xSW02::begin(void)
 		setTemperatureOversampling();
   		setPressureOversampling();
   		setIIRFilterSize();
-		initGasSensor(setGasHeater(320));
+		initGasSensor(setGasHeater(250));
 		xCore.write8(BME680_I2C_ADDRESS, BME680_REG_CNTL_MEAS, config.mode);
 		return true;
 	}
-} 
+}
+
+bool xSW02::readVOC(void)
+{
+	float t, h, r;
+	t = getTempC();
+	h = getHumidity();
+	float a = absHum(t, h);
+	aF = (aF == 0 || a < aF)?a:aF + 0.2 * (a - aF);
+	
+	/*if(!bme680VocValid)
+	{*/
+		//isValidIAQ = false;
+		voc = 0.0;
+		vocEst = 0.0;
+		
+	//}
+	
+	r = getGasRes();
+	
+	uint32_t base = bme680Abc(r, a);
+	
+	/*if (!bme680VocValid && (millis() > 300000)) 
+    {*/       
+        //--- allow 300 sec (5 min) to warm-up sensor for stable voc resistance (300000ms)
+        resFiltered = r;        // preload low pass filter
+        bme680VocValid = true;           
+    /*}else{
+		isValidIAQ = false;
+    }*/
+	
+	/*if (!bme680VocValid ) 
+    {
+      return false;
+    }*/
+	
+	isValidIAQ = true;
+
+	resFiltered += 0.1 * (r - resFiltered);    
+
+    float ratio = (float)base / (r * aF * 7.0F);
+
+    float tV  = ( 1250 * log(ratio) ) + 125;                     // approximation    
+
+    float tV2 = tVoc + 0.1 * (tV - tVoc);
+
+    tVoc = (tVoc == 0 || isnan(tVoc) || isinf(tVoc) ) ? tV : tV2;       // global tVoc
+
+    voc = tVoc; 
+
+	float tvoc_estimated_value;
+
+	if(tVoc > 0)
+	{
+		tvoc_estimated_value = simpleKalmanFilter.updateEstimate(tVoc);
+	}else{
+		tvoc_estimated_value = 0;		
+	}
+	
+
+    vocEst = tvoc_estimated_value;	
+	
+	return true;
+	
+}
+
+float xSW02::getTVOC(void)
+{
+	return voc * 1000.0;
+}
+
+float xSW02::getTVOCFiltered(void)
+{
+	return vocEst * 1000.0;
+}
+
+
+uint32_t xSW02::bme680Abc(uint32_t r, float a) 
+{   
+    //--- automatic baseline correction
+    uint32_t b = r * a * 7.0F;
+    if (b > bme680_baseC && bDelay > 5) 
+    {     
+      //--- ensure that new baseC is stable for at least >5*10sec (clean air)
+      bme680_baseC = b;
+      bme680_baseH = a;
+    } else if (b > bme680_baseC) 
+    {
+      bDelay++;
+      //return b;
+    } else{
+      bDelay = 0;
+    }
+    
+    return (param.vocBaseC > bme680_baseC)?param.vocBaseC:bme680_baseC;
+}
+
+float xSW02::absHum(float temp, float hum)
+{
+    double sdd, dd;
+    sdd=6.1078 * pow(10,(7.5*temp)/(237.3+temp));
+    dd=hum/100.0*sdd;
+    return (float)216.687*dd/(273.15+temp);
+}  
 
 /********************************************************
  	Read Data from BME680 Sensor
@@ -132,6 +254,8 @@ void xSW02::poll(void)
 
 		readBlock(BME680_I2C_ADDRESS, BME680_REG_GAS_R_MSB, 2, &rawData[0]);
 		readGas((((uint16_t)rawData[0] << 2 | (0xC0 & rawData[1]) >> 6)));
+		
+		readVOC();
 	}
 }
 
@@ -454,7 +578,7 @@ void xSW02::initGasSensor(uint8_t resHeat)
 	// Configure the BME680 Gas Sensor
 	xCore.write8(BME680_I2C_ADDRESS, BME680_REG_CNTL_GAS_1, 0x10); 
 	// Set gas sampling wait time and target heater resistance
-	xCore.write8(BME680_I2C_ADDRESS, (BME680_REG_GAS_WAIT0), 1 | 0x59);
+	xCore.write8(BME680_I2C_ADDRESS, (BME680_REG_GAS_WAIT0), 1 | 0x65);
 	xCore.write8(BME680_I2C_ADDRESS, (BME680_REG_RES_HEAT0), resHeat);
 }
 
@@ -478,6 +602,37 @@ uint8_t xSW02::setGasHeater(uint8_t set_point)
 	res_heat_x = (uint8_t)(3.4 * ((var5 * (4.0 / (4.0 + (double)res_heat_range)) * (1.0/(1.0 +((double)res_heat_val * 0.002)))) - 25));
 	return res_heat_x;
 }
+
+/*uint8_t xSW02::setGasHeater(uint8_t temp)
+{
+	uint8_t heatr_res;
+	int32_t var1;
+	int32_t var2;
+	int32_t var3;
+	int32_t var4;
+	int32_t var5;
+	int32_t heatr_res_x100;
+
+	uint8_t par_g1 = xCore.read8(BME680_I2C_ADDRESS, 0xED);
+	uint16_t  par_g2 = ((uint16_t) xCore.read8(BME680_I2C_ADDRESS, 0xEC) << 8) | xCore.read8(BME680_I2C_ADDRESS, 0xEB);
+	uint8_t  par_g3 = xCore.read8(BME680_I2C_ADDRESS, 0xEE);
+	uint8_t  res_heat_range = (xCore.read8(BME680_I2C_ADDRESS, 0x02) & 0x30) >> 4;
+	uint8_t res_heat_val = xCore.read8(BME680_I2C_ADDRESS, 0x00);
+
+	if (temp > 400)
+		temp = 400;
+
+
+	var1 = (((int32_t) 25 * par_g3) / 1000) * 256;
+	var2 = (par_g1 + 784) * (((((par_g2 + 154009) * temp * 5) / 100) + 3276800) / 10);
+	var3 = var1 + (var2 / 2);
+	var4 = (var3 / (res_heat_range + 4));
+	var5 = (131 * res_heat_val) + 65536;
+	heatr_res_x100 = (int32_t) (((var4 / var5) - 250) * 34);
+	heatr_res = (uint8_t) ((heatr_res_x100 + 50) / 100);
+
+	return heatr_res;
+}*/
 
 /********************************************************
  	Init trigger forced reading
