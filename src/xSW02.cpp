@@ -465,8 +465,8 @@ uint8_t xSW02::setGasHeater(uint8_t set_point)
 {
 	uint8_t res_heat_x = 0;
 	double var1 = 0.0, var2 = 0.0, var3 = 0.0, var4 = 0.0, var5 = 0.0;
-	uint16_t par_g1 = xCore.read8(BME680_I2C_ADDRESS, 0xED);
-	uint8_t  par_g2 = ((uint16_t) xCore.read8(BME680_I2C_ADDRESS, 0xEC) << 8) | xCore.read8(BME680_I2C_ADDRESS, 0xEB);
+	uint8_t par_g1 = xCore.read8(BME680_I2C_ADDRESS, 0xED);
+	uint16_t  par_g2 = ((uint16_t) xCore.read8(BME680_I2C_ADDRESS, 0xEC) << 8) | xCore.read8(BME680_I2C_ADDRESS, 0xEB);
 	uint8_t  par_g3 = xCore.read8(BME680_I2C_ADDRESS, 0xEE);
 	uint8_t  res_heat_range = (xCore.read8(BME680_I2C_ADDRESS, 0x02) & 0x30) >> 4;
 	uint8_t res_heat_val = xCore.read8(BME680_I2C_ADDRESS, 0x00);
