@@ -70,6 +70,7 @@ uint32_t bme680_baseC = 0;
 float bme680_baseH = 0;
 float resFiltered;
 float tVoc = 0;
+unsigned long timer = 0;
 
 struct 
 { 
@@ -102,6 +103,9 @@ bool xSW02::begin(void)
 {
 	uint8_t DEV_ID;
 	DEV_ID = xCore.read8(BME680_I2C_ADDRESS, BME680_REG_ID);
+	
+	sum = 0.0;
+	index = 0.0;
 
 	if(DEV_ID != 0x61){
 		return false;
@@ -116,6 +120,8 @@ bool xSW02::begin(void)
 		xCore.write8(BME680_I2C_ADDRESS, BME680_REG_CNTL_MEAS, config.mode);
 		return true;
 	}
+	
+	timer = millis();
 }
 
 bool xSW02::readVOC(void)
@@ -182,14 +188,24 @@ bool xSW02::readVOC(void)
 	
 }
 
+void xSW02::readeCO2()
+{
+	eco2 = voc * 0.2927 + 392.054;
+}
+
+float xSW02::geteCO2()
+{
+	return eco2;
+}
+
 float xSW02::getTVOC(void)
 {
-	return voc * 1000.0;
+	return voc ;
 }
 
 float xSW02::getTVOCFiltered(void)
 {
-	return vocEst * 1000.0;
+	return vocEst ;
 }
 
 
@@ -256,6 +272,10 @@ void xSW02::poll(void)
 		readGas((((uint16_t)rawData[0] << 2 | (0xC0 & rawData[1]) >> 6)));
 		
 		readVOC();
+		readeCO2();
+		readIAQ();
+		
+		
 	}
 }
 
@@ -343,10 +363,8 @@ float xSW02::getGasRes(void)
 /********************************************************
  	Get the Current IAQ Score
 *********************************************************/
-uint16_t xSW02::getIAQ(void)
+float xSW02::getIAQ(void)
 {
-	uint16_t IAQ;
-
 	return IAQ;
 }
 
@@ -470,6 +488,55 @@ void xSW02::readGas(uint16_t resVal)
 	//Serial.println(gasRange);
 	//Serial.println(range_switch_error);
 }
+
+bool xSW02::readIAQ()
+{
+	sum += getGasRes();
+	index += 1;
+	
+	if(millis() - timer < 360000)
+		return false;
+	
+	gasBase = sum/index;
+	
+	
+	
+	
+	//hum score
+	hum_offset = (getHumidity() - humBase);
+	
+	if(hum_offset > 0)
+	{
+		hum_score = 100 - humBase - hum_offset;
+		hum_score /= (100 - humBase);
+		hum_score *= (hum_weighting * 100);
+	}else{
+		hum_score = (humBase + hum_offset);
+        hum_score /= humBase;
+        hum_score *= (hum_weighting * 100);
+	}
+	
+	//gas score
+	gas_offset = gasBase - getGasRes();
+	if (gas_offset > 0){
+		
+		gas_score = (getGasRes() / gasBase);
+        gas_score *= (100 - (hum_weighting * 100));
+		
+	}else{
+		
+		gas_score = 100 - (hum_weighting * 100);
+		
+	}
+	
+	IAQ = hum_score + gas_score;
+	
+	return true;
+	
+}
+
+
+
 
 /********************************************************
  	Init BM680
