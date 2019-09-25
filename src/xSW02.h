@@ -142,7 +142,7 @@ class xSW02: public xCoreClass
 		*
 		* @return altitude. Returns float value in ohms.
 		*/
-	        float 	getGasRes(void);               	// pressure in pascals
+	    float 	getGasRes(void);               	// Gas resistance in ohms
 		
 		/*
 		* Used to get Altitude based on standard sea-level pressure
@@ -179,13 +179,15 @@ class xSW02: public xCoreClass
 		float getTVOC(void);
 		
 		float getTVOCFiltered(void);
+			
+		float geteCO2(void);
 
 		/*
 		* Get the current IAQ index.
 		*
 		* @return IAQ, value of current index
 		*/	
-		uint16_t getIAQ(void);
+		float getIAQ(void);
 
 		struct bme680_dev config;
 		
@@ -227,14 +229,15 @@ class xSW02: public xCoreClass
 
 		bool readVOC(void);
 		
-		void readCO2(void);
-		
 		uint32_t bme680Abc(uint32_t r, float a);
 		
 		float absHum(float temp, float hum);
 		
 		uint16_t readGasResistance(void);
 		
+		void readeCO2(void);
+		
+		bool readIAQ(void);
 
 		/*
 		* Set defaults value for sensor
@@ -297,7 +300,18 @@ class xSW02: public xCoreClass
 		float 	gas_res;
 		float   voc;
 		float   vocEst;
+		float 	eco2;
 		bool	isValidIAQ;
+		float gasBase;
+		const float humBase = 40.0;
+		const float hum_weighting = 0.25;
+		float hum_offset;
+		float hum_score;
+		float gas_offset;
+		float gas_score;
+		float sum;
+		float index;
+		float IAQ;
 		
 		int32_t t_fine;
 		
