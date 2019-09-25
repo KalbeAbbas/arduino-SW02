@@ -227,11 +227,14 @@ class xSW02: public xCoreClass
 
 		bool readVOC(void);
 		
+		void readCO2(void);
+		
 		uint32_t bme680Abc(uint32_t r, float a);
 		
 		float absHum(float temp, float hum);
 		
 		uint16_t readGasResistance(void);
+		
 
 		/*
 		* Set defaults value for sensor
